@@ -130,7 +130,7 @@ class Game:
         for p in self.pl:
             p["starts_as"] = roles[i]
             p["new_role"] = roles[i]
-            p["night_action"] = ROLES_DECRIPTION[p["starts_as"]]["night_action"]
+            p["night_action"] = copy.deepcopy(ROLES_DECRIPTION[p["starts_as"]]["night_action"])
             p["night_action_done"] = ROLES_DECRIPTION[p["starts_as"]]["night_action_done"]
             p["vote"] = -1
             if p["type"] == "bot":
@@ -281,9 +281,10 @@ class Game:
                 max_votes = p["votes_against"]
         # determine killed persons
         voted_out = []
-        for p in self.human_pl:
-            if p["votes_against"] == max_votes:
-                voted_out.append(p)
+        if max_votes > 1:
+            for p in self.human_pl:
+                if p["votes_against"] == max_votes:
+                    voted_out.append(p)
         human_werewulfs = self.get_human_werewolves()
 
         # win/lose logic
@@ -298,7 +299,12 @@ class Game:
             msg += "\nМирные проиграли!"
             return False, msg
         if len(human_werewulfs) == 0 and len(voted_out) > 0:
-            return False, "Вы убили невинного человека, ведь в деревне не было оборотней. Вы все проиграли!"
+            if len(voted_out) == 1:
+                msg = f'Убитый {voted_out[0]["name"]} оказался невиновным.'
+            else:
+                killed_list = ", ".join(v["name"] for v in voted_out)
+                msg = f'Убитые {killed_list} оказались все невиновными.'
+            return False, msg + "\nВ деревне не было оборотней. Вы все проиграли!"
         killed_werewolf = []
         for v in voted_out:
             if v["num"] in human_werewulfs:
