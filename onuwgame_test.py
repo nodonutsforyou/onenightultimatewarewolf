@@ -1,6 +1,6 @@
 import pytest
 import json
-from onuwgame import Game
+from onuwgame import Game, Roles
 
 dummy_players = [
     {'first_name': 'Peotr', 'last_name': 'I', 'id': 1, 'language_code': 'en', 'is_bot': False},
@@ -18,48 +18,60 @@ def try_cast_an_action(g, p, a, a2):
         g.action(p, [a, a2])
 
 ROLES_LIST_1 = [
-    "оборотень",
-    "оборотень",
-    "мирный",
-    "баламут",
-    "вор",
-    "ясновидящий",
+    Roles.WEREWOLF,
+    Roles.WEREWOLF,
+    Roles.VILLAGER,
+    Roles.TROUBLEMAKER,
+    Roles.ROBBER,
+    Roles.SEER,
 ]
 
 ROLES_LIST_2 = [
-    "мирный",       # 1
-    "мирный",       # 2
-    "мирный",       # 3
-    "оборотень",    # 4
-    "оборотень",    # 5
-    "мирный",       # 6
-    "баламут",      # 7
-    "вор",          # 8
-    "ясновидящий",  # 9
+    Roles.VILLAGER,         # 1
+    Roles.VILLAGER,         # 2
+    Roles.VILLAGER,         # 3
+    Roles.WEREWOLF,         # 4
+    Roles.WEREWOLF,         # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
 ]
 
 ROLES_LIST_3 = [
-    "мирный",       # 1
-    "мирный",       # 2
-    "оборотень",    # 3
-    "мирный",       # 4
-    "оборотень",    # 5
-    "мирный",       # 6
-    "баламут",      # 7
-    "вор",          # 8
-    "ясновидящий",  # 9
+    Roles.VILLAGER,         # 1
+    Roles.VILLAGER,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.VILLAGER,         # 4
+    Roles.WEREWOLF,         # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
 ]
 
 ROLES_LIST_4 = [
-    "мирный",       # 1
-    "оборотень",    # 2
-    "оборотень",    # 3
-    "мирный",       # 4
-    "мирный",       # 5
-    "мирный",       # 6
-    "баламут",      # 7
-    "вор",          # 8
-    "ясновидящий",  # 9
+    Roles.VILLAGER,         # 1
+    Roles.WEREWOLF,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.VILLAGER,         # 4
+    Roles.VILLAGER,         # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
+]
+
+ROLES_LIST_5_WITH_INSOMNIAC = [
+    Roles.VILLAGER,         # 1
+    Roles.WEREWOLF,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.INSOMNIAC,        # 4
+    Roles.VILLAGER,         # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
 ]
 
 @pytest.mark.parametrize("roles,players,actions,votes,expected",
@@ -76,6 +88,7 @@ ROLES_LIST_4 = [
                              pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 7, 4, 4, 8], True),
                              pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 8, 8, 8, 6], False),
                              pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 9, 9, 5, 5], False),
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 5, 6, 7], False),
                          ],
                          )
 def test_games(roles, players, actions, votes, expected):
@@ -98,3 +111,50 @@ def test_games(roles, players, actions, votes, expected):
     res, msg = game.implement_votes()
     print(res, msg)
     assert expected == res, msg
+
+@pytest.mark.parametrize("roles,players,actions,votes,expected_role",
+                         [
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [4, 5], [5], [4]], [5, 6, 5, 5, 5, 5], Roles.ROBBER),
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [4, 8], [4], [4]], [5, 6, 5, 5, 5, 5], Roles.INSOMNIAC),
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [5, 8], [4], [4]], [5, 6, 5, 5, 5, 5], Roles.ROBBER),
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [4, 2], [4], [4]], [5, 6, 5, 5, 5, 5], Roles.WEREWOLF),
+                         ],
+                         )
+def test_insomniac(roles, players, actions, votes, expected_role):
+    game = Game()
+    for pl in players:
+        game.add_player(pl)
+    game.init_game(roles)
+    for pl, acs in zip(players, actions):
+        for a in acs:
+            game.action(pl, a)
+            # print("game.check_actions_cast()" + str(game.check_actions_cast()))
+    # print("game.check_actions_cast()" + str(game.check_actions_cast()))
+
+    game.implement_actions()
+
+    for p in game.pl:
+        if p["starts_as"] == Roles.INSOMNIAC:
+            assert p["new_role"] == expected_role
+            print(p["msg"])
+
+
+@pytest.mark.parametrize("run", range(10))
+def test_shufle_roles(run):
+    game = Game()
+    for pl in dummy_players:
+        game.add_player(pl)
+    game.init_game()
+    assigned_roles = [p["starts_as"] for p in game.pl]
+    role_count = {}
+    for r in Roles:
+        role_count[r] = 0
+    for r in assigned_roles:
+        role_count[r] += 1
+    assert len(dummy_players) == 6
+    assert len(assigned_roles) == 9
+    assert role_count[Roles.VILLAGER] == 4
+    assert role_count[Roles.WEREWOLF] == 2
+    assert role_count[Roles.TROUBLEMAKER] == 1
+    assert role_count[Roles.ROBBER] == 1
+    assert role_count[Roles.SEER] == 1

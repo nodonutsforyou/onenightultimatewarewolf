@@ -2,38 +2,59 @@ import logging
 import random
 import json
 import copy
+from enum import Enum
 from datetime import datetime
 random.seed(datetime.now())
 
+
+class Roles(Enum):
+    WEREWOLF = "оборотень"
+    VILLAGER = "мирный"
+    TROUBLEMAKER = "баламут"
+    ROBBER = "вор"
+    SEER = "ясновидящий"
+    # TANNER = "кожевник"
+    # DRUNK = "пьяница"
+    # HUNTER = "охотник"
+    # MASON = "масон"
+    INSOMNIAC = "лунатик"
+    # MINION = "прихвостень"
+    # DOPPELGANGER = "двойник"
+
+
 # Globals
-ROLES = [
-    "оборотень",
-    "оборотень",
-    "мирный",
-    "баламут",
-    "вор",
-    "ясновидящий",
+DEFAULT_ROLES = [
+    Roles.WEREWOLF,
+    Roles.WEREWOLF,
+    Roles.VILLAGER,
+    Roles.TROUBLEMAKER,
+    Roles.ROBBER,
+    Roles.SEER,
 ]
 ROLES_DECRIPTION = {
-    "оборотень": {
+    Roles.WEREWOLF: {
         "night_action_done": True,
         "night_action": 0,
     },
-    "мирный": {
+    Roles.VILLAGER: {
         "night_action_done": True,
         "night_action": 0,
     },
-    "баламут": {
+    Roles.TROUBLEMAKER: {
         "night_action_done": False,
         "night_action": [],
     },
-    "вор": {
+    Roles.ROBBER: {
         "night_action_done": False,
         "night_action": -1,
     },
-    "ясновидящий": {
+    Roles.SEER: {
         "night_action_done": False,
         "night_action": [],
+    },
+    Roles.INSOMNIAC: {
+        "night_action_done": True,
+        "night_action": 0,
     },
 }
 starting_players = [
@@ -54,8 +75,8 @@ starting_players = [
     }
 ]
 
-class Game:
 
+class Game:
     # Game Lobby status
     players_list = []
 
@@ -73,29 +94,34 @@ class Game:
         return None
 
     def add_player(self, user):
-        if (self.get_player(user) is None):
+        if self.get_player(user) is None:
             self.players_list.append(user)
 
     def get_list_of_players(self):
         r = [(str(p['first_name']) + ' ' + str(p['last_name'])) for p in self.players_list]
         return "\n".join(r)
 
+    def get_num_of_players(self):
+        return len(self.players_list)
+
     def get_init_message(self, p):
-        if p["starts_as"] == "мирный":
+        if p["starts_as"] == Roles.VILLAGER:
             return "Вы мирный житель\nПодождите пока остальные жители сделают свой ход"
-        if p["starts_as"] == "оборотень":
+        if p["starts_as"] == Roles.WEREWOLF:
             return "Вы оборотень\nПодождите пока остальные жители сделают свой ход"
-        if p["starts_as"] == "баламут":
+        if p["starts_as"] == Roles.TROUBLEMAKER:
             return "Вы баламут\nвыберете двух игроков чтобы поменять их роли местами"
-        if p["starts_as"] == "вор":
+        if p["starts_as"] == Roles.ROBBER:
             return "Вы вор\nвыберете номер игрока чтобы украсть его роль"
-        if p["starts_as"] == "ясновидящий":
+        if p["starts_as"] == Roles.SEER:
             return "Вы ясновидящий\nвыберете номер игрока чтобы увидеть его роль.\nИли два номера ненастоящих игрков"
+        if p["starts_as"] == Roles.INSOMNIAC:
+            return "Вы лунатик\nПодождите пока остальные жители сделают свой ход"
 
     def shuffle_roles(self):
-        roles = ROLES[:len(self.pl)]
+        roles = DEFAULT_ROLES[:len(self.pl)]
         while len(roles) < len(self.pl):
-            roles.append("мирный")
+            roles.append(Roles.VILLAGER)
         random.shuffle(roles)
         logging.info("Roles are " + str(roles))
         return roles
@@ -175,14 +201,14 @@ class Game:
                     return False, f'Нельзя выбирать второй раз'
                 if action == p["num"]:
                     return False, f'Нельзя выбирать себя'
-                if p["starts_as"] == "баламут":
+                if p["starts_as"] == Roles.TROUBLEMAKER:
                     p["night_action"].append(action)
                     if len(p["night_action"]) == 1:
                         return True, f'Принято {p["night_action"][0]}. Второй игрок?'
                     else:
                         p["night_action_done"] = True
                         return True, f'Принято {p["night_action"][0]} и {p["night_action"][1]}'
-                if p["starts_as"] == "ясновидящий":
+                if p["starts_as"] == Roles.SEER:
                     p["night_action"].append(action)
                     if len(p["night_action"]) == 1:
                         if action > 3:
@@ -199,7 +225,7 @@ class Game:
                     else:
                         p["night_action_done"] = True
                         return True, f'Принято {p["night_action"][0]} и {p["night_action"][1]}'
-                if p["starts_as"] == "вор":
+                if p["starts_as"] == Roles.ROBBER:
                     p["night_action"] = action
                     p["night_action_done"] = True
                     return True, f'Принято {p["night_action"]}.'
@@ -236,10 +262,10 @@ class Game:
         human_werewulfs = self.get_human_werewolves()
         for p in self.human_pl:
             # Мирный
-            if p["starts_as"] == "мирный":
+            if p["starts_as"] == Roles.VILLAGER:
                 p["msg"] = ""
             # Оборотень
-            if p["starts_as"] == "оборотень":
+            if p["starts_as"] == Roles.WEREWOLF:
                 if len(human_werewulfs) == 1:
                     p["msg"] = 'Этой ночью вам пришлось выть на луну в одиночестве. Вы, кажется, единственный оборотень в этой деревне'
                 else:
@@ -247,24 +273,31 @@ class Game:
                     p["msg"] = f'Этой ночью вам не пришлось выть на луну в одиночестве. Потому что {self.n[other_wolf]["name"]} - тоже оборотень'
 
             # Ясновидящий
-            if p["starts_as"] == "ясновидящий":
+            if p["starts_as"] == Roles.SEER:
                 a = p["night_action"]
                 if len(a) == 1:
                     p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}'
                 else:
                     p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}, а {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}'
             # Вор
-            if p["starts_as"] == "вор":
+            if p["starts_as"] == Roles.ROBBER:
                 a = p["night_action"]
                 p["msg"] = f'Украденные документы подверждают, что вы теперь -- {self.n[a]["starts_as"]}'
                 p["new_role"], self.n[a]["new_role"] = self.n[a]["new_role"], p["new_role"]
         for p in self.human_pl:
             # Баламут
-            if p["starts_as"] == "баламут":
+            if p["starts_as"] == Roles.TROUBLEMAKER:
                 a1 = p["night_action"][0]
                 a2 = p["night_action"][1]
                 p["msg"] = f'Вы подмешали роли {self.n[a1]["name"]} и {self.n[a2]["name"]}. Но они об этом не знают.'
                 self.n[a1]["new_role"], self.n[a2]["new_role"] = self.n[a2]["new_role"], self.n[a1]["new_role"]
+        for p in self.human_pl:
+            # Лунатик
+            if p["starts_as"] == Roles.INSOMNIAC:
+                if p["new_role"] == p["starts_as"]:
+                    p["msg"] = f'Вы проснулись среди ночи, чтобы узнать что ничего с вами не случилось.\nВы как были лунатиком, так и остались'
+                else:
+                    p["msg"] = f'Вы проснулись среди ночи, чтобы узнать что вы теперь не лунатик а {p["new_role"].value}'
 
     def implement_votes(self):
         # cast votes
@@ -327,10 +360,10 @@ class Game:
         for p in self.human_pl:
             if p["id"] == id:
                 if p["starts_as"] == p["new_role"]:
-                    msg = f'Вы остались `{p["new_role"]}` в конце игры\n'
+                    msg = f'Вы остались `{p["new_role"].value}` в конце игры\n'
                 else:
-                    msg = f'В конце игры вы оказались `{p["new_role"]}`\n'
-                if p["new_role"] == "оборотень":
+                    msg = f'В конце игры вы оказались `{p["new_role"].value}`\n'
+                if p["new_role"] == Roles.WEREWOLF:
                     personal_victory = not victory
                 if personal_victory:
                     msg += "Вы победили!"
@@ -341,7 +374,7 @@ class Game:
     def get_human_werewolves(self):
         human_werewulfs = []
         for p in self.human_pl:
-            if p["new_role"] == "оборотень":
+            if p["new_role"] == Roles.WEREWOLF:
                 human_werewulfs.append(p["num"])
         return human_werewulfs
 
@@ -349,9 +382,9 @@ class Game:
         msg = ""
         for p in self.pl:
             if p["type"] == "bot":
-                msg += f'{p["name"]} был {p["starts_as"]}\n'
+                msg += f'{p["name"]} был {p["starts_as"].value} и закончил игру как {p["new_role"].value}\n'
             elif p["night_action"] == 0:
-                msg += f'{p["name"]} был {p["starts_as"]} и закончил игру как {p["new_role"]}\n'
+                msg += f'{p["name"]} был {p["starts_as"].value} и закончил игру как {p["new_role"].value}\n'
             else:
-                msg += f'{p["name"]} был {p["starts_as"]}, выбрал {str(p["night_action"])} и закончил игру как {p["new_role"]}\n'
+                msg += f'{p["name"]} был {p["starts_as"].value}, выбрал {str(p["night_action"])} и закончил игру как {p["new_role"].value}\n'
         return msg

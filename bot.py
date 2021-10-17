@@ -6,6 +6,7 @@ from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, Callb
 from enum import Enum
 import time
 import re
+import random
 
 from onuwgame import Game
 
@@ -51,17 +52,20 @@ def start(update: Update, context: CallbackContext) -> None:
 
 def help_command(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
-    update.message.reply_text(" /start чтобы добавиться и посмотреть список людей")
+    update.message.reply_text(" /start или /join чтобы добавиться и посмотреть список людей")
     update.message.reply_text(" /help посмотреть эту подсказку")
     update.message.reply_text(" /game чтобы начать игру")
     update.message.reply_text(" /stop чтобы остановить игру")
+    # update.message.reply_text(" /remove чтобы убрать другого игрока из игры")
 
 
 def game(update: Update, context: CallbackContext) -> None:
     logger.info("Game Start")
     global stateFlag
-    if stateFlag != State.STOPPED:
-        update.message.reply_text("другая игра в процессе /stop чтобы остановить ее")
+    if gameObj.get_num_of_players() == 0:
+        update.message.reply_text("Ни одного игрока не присоединилось /join чтобы присоединиться")
+        update.message.reply_text("/help чтобы посмотреть подсказку")
+        return
     gameObj.init_game()
     for p in gameObj.human_pl:
         update.message.bot.send_message(p["id"], "Игра начинается")
@@ -71,9 +75,26 @@ def game(update: Update, context: CallbackContext) -> None:
     if gameObj.check_actions_cast():
         #пауза на случай если все игроки мирные или оборотни
         logger.info("All players have no actions pause")
-        time.sleep(15)
+        time.sleep(random.randint(3, 15))
     action_phase(update, context)
 
+
+def stop(update: Update, context: CallbackContext) -> None:
+    logger.info("Game Interupted")
+    global stateFlag
+    initiator = update.effective_user
+    initiator_name = str(initiator['first_name']) + ' ' + str(initiator['last_name'])
+    if stateFlag != State.STOPPED:
+        for p in gameObj.human_pl:
+            update.message.bot.send_message(p["id"], "Игра прервана " + initiator_name)
+    else:
+        update.message.reply_text("Игра не найдена")
+    stateFlag = State.STOPPED
+    kill_alarms(context)
+
+
+def remove(update: Update, context: CallbackContext) -> None:
+    pass
 
 
 def alarm5(context: CallbackContext) -> None:
@@ -160,6 +181,9 @@ def main() -> None:
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(CommandHandler("join", start))
+    dispatcher.add_handler(CommandHandler("stop", stop))
+    # dispatcher.add_handler(CommandHandler("remove", remove))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("game", game))
     for i in range(0, 20):
