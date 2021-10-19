@@ -1,14 +1,15 @@
 import pytest
 import json
 from onuwgame import Game, Roles
+from contextlib import contextmanager
 
 dummy_players = [
-    {'first_name': 'Peotr', 'last_name': 'I', 'id': 1, 'language_code': 'en', 'is_bot': False},
-    {'first_name': 'Vaysa', 'last_name': 'II', 'id': 2, 'language_code': 'en', 'is_bot': False},
-    {'first_name': 'Goasha', 'last_name': 'III', 'id': 3, 'language_code': 'en', 'is_bot': False},
-    {'first_name': 'IVAN', 'last_name': 'IV', 'id': 4, 'language_code': 'en', 'is_bot': False},
-    {'first_name': 'Sputnik', 'last_name': 'V', 'id': 5, 'language_code': 'en', 'is_bot': False},
-    {'first_name': 'Ruslan', 'last_name': 'VI', 'id': 6, 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Peotr', 'last_name': 'I', 'id': "1", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Vaysa', 'last_name': 'II', 'id': "2", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Goasha', 'last_name': 'III', 'id': "3", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'IVAN', 'last_name': 'IV', 'id': "4", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Sputnik', 'last_name': 'V', 'id': "5", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Ruslan', 'last_name': 'VI', 'id': "6", 'language_code': 'en', 'is_bot': False},
 ]
 
 def try_cast_an_action(g, p, a, a2):
@@ -74,43 +75,73 @@ ROLES_LIST_5_WITH_INSOMNIAC = [
     Roles.SEER,             # 9
 ]
 
-@pytest.mark.parametrize("roles,players,actions,votes,expected",
+@contextmanager
+def does_not_raise():
+    yield
+
+@pytest.mark.parametrize("roles,players,actions,votes,expected,expected_msg",
                          [
-                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [0, 0, 0], True),
-                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [5, 6, 4], True),
-                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [5, 4, 4], False),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 5, 5, 5, 5], False),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 8, 9, 4], False),
-                             pytest.param(ROLES_LIST_3, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 8, 9, 4], False),
-                             pytest.param(ROLES_LIST_4, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 5, 6, 5, 6], False),
-                             pytest.param(ROLES_LIST_4, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 5, 6, 7], False),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 6, 6, 6, 6], True),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 7, 4, 4, 8], True),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 8, 8, 8, 6], False),
-                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 9, 9, 5, 5], False),
-                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 5, 6, 7], False),
+                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [0, 0, 0], True, "Вы все победили"),
+                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [5, 6, 4], True, "Вы все победили"),
+                             pytest.param(ROLES_LIST_1, dummy_players[:3], [[5, 6], [4], [1, 2]], [5, 4, 4], False, "Убитый Peotr I оказался невиновным"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 5, 5, 5, 5], False, "Убитый Vaysa II оказался невинным человеком"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 8, 9, 4], False, "Peotr I и Goasha III оказались оборотнями"),
+                             pytest.param(ROLES_LIST_3, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 8, 9, 4], False, "Goasha III оказался оборотнем"),
+                             pytest.param(ROLES_LIST_4, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 5, 6, 5, 6], False, "Убитые Vaysa II, Goasha III оказались"),
+                             pytest.param(ROLES_LIST_4, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 5, 6, 7], False, "Убитые Vaysa II, Goasha III, IVAN IV оказались"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 6, 6, 6, 6], True, "Убитый Goasha III оказался"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 7, 4, 4, 8], True, "Убитые Peotr I и Goasha III оказались оборотнями"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 8, 8, 8, 6], False, "Убитый Sputnik V оказался невинным человеком"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [8, 8, 9, 9, 5, 5], False, "Убитые Vaysa II, Sputnik V, Ruslan VI"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 6, 6, 6, 8], [5], [4]], [6, 6, 7, 4, 4, 8], True, "Убитые Peotr I и Goasha III оказались оборотнями"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 6, 6, 8], [5], [4]], [8, 8, 8, 8, 8, 6], False, "Убитый Sputnik V оказался невинным человеком"),
+                             pytest.param(ROLES_LIST_5_WITH_INSOMNIAC, dummy_players, [[], [], [], [6, 8], [5], [4]], [5, 6, 7, 5, 6, 7], False, "Убитые Vaysa II, Goasha III, IVAN IV оказались"),
+                             # one less vote here
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8], [5], [4]], [6, 6, 6, 6, 6], pytest.raises(Exception), "not all votes are cast"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 6], [5], [4]], [6, 6, 6, 6, 6, 6], pytest.raises(Exception), "not all actions are cast"),
+                             pytest.param(ROLES_LIST_2, dummy_players, [[], [], [], [6, 8, 4], [5], []], [6, 6, 6, 6, 6, 6], pytest.raises(Exception), "not all actions are cast"),
                          ],
                          )
-def test_games(roles, players, actions, votes, expected):
-    game = Game()
-    for pl in players:
-        game.add_player(pl)
-    game.init_game(roles)
-    for pl, acs in zip(players, actions):
-        for a in acs:
-            game.action(pl, a)
-            # print("game.check_actions_cast()" + str(game.check_actions_cast()))
-    # print("game.check_actions_cast()" + str(game.check_actions_cast()))
+def test_games(roles, players, actions, votes, expected, expected_msg):
+    raises = expected
+    if isinstance(expected, bool):
+        raises = does_not_raise()
+    with raises as error:
+        game = Game()
+        for pl in players:
+            game.add_player(pl)
+        game.init_game(roles)
+        for pl, acs in zip(players, actions):
+            pl_obj = get_pl_by_name(game, pl["first_name"])
+            msg, options = game.get_init_message(pl_obj)
+            options_num = flatten_button_list(options)
+            for a in acs:
+                assert str(a) in options_num
+                game.action(pl, a)
+        assert game.check_actions_cast(), "not all actions are cast"
+        game.implement_actions()
 
-    game.implement_actions()
+        for pl, v in zip(players, votes):
+            assert not game.check_votes_cast()
+            game.vote(pl, v)
+        assert game.check_votes_cast(), "not all votes are cast"
 
-    for pl, v in zip(players, votes):
-        game.vote(pl, v)
-        # print("game.check_votes_cast()" + str(game.check_votes_cast()))
+        res, msg = game.implement_votes()
+        print(res, msg)
+        if isinstance(expected, bool):
+            assert expected == res, msg
+        assert expected_msg in msg
+    # working with possible exception from here\
+    print(str(error))
+    if not isinstance(expected, bool):
+        assert expected_msg in str(error)
 
-    res, msg = game.implement_votes()
-    print(res, msg)
-    assert expected == res, msg
+
+def get_pl_by_name(game, name):
+    for p in game.pl:
+        if name in p["name"]:
+            return p
+
 
 @pytest.mark.parametrize("roles,players,actions,votes,expected_role",
                          [
@@ -128,11 +159,7 @@ def test_insomniac(roles, players, actions, votes, expected_role):
     for pl, acs in zip(players, actions):
         for a in acs:
             game.action(pl, a)
-            # print("game.check_actions_cast()" + str(game.check_actions_cast()))
-    # print("game.check_actions_cast()" + str(game.check_actions_cast()))
-
     game.implement_actions()
-
     for p in game.pl:
         if p["starts_as"] == Roles.INSOMNIAC:
             assert p["new_role"] == expected_role
@@ -158,3 +185,35 @@ def test_shufle_roles(run):
     assert role_count[Roles.TROUBLEMAKER] == 1
     assert role_count[Roles.ROBBER] == 1
     assert role_count[Roles.SEER] == 1
+
+@pytest.mark.parametrize("table, exclude_id, vote_all, assert_included, assert_excluded",
+                         [
+                             (True, "1", None, ['1', '2', '3', '5', '6', '7', '8', '9'], ['4', '0']),
+                             (False, "2", None, ['4', '6', '7', '8', '9'], ['1', '2', '3', '5', '0']),
+                             (False, None, None, ['4', '5', '6', '7', '8', '9'], ['1', '2', '3', '0']),
+                             (False, None, True, ['4', '5', '6', '7', '8', '9', '0'], ['1', '2', '3']),
+                             (False, "3", True, ['4', '5', '7', '8', '9', '0'], ['1', '2', '3', '6']),
+                         ])
+def test_exclude_id(table, exclude_id, vote_all, assert_included, assert_excluded):
+    game = Game()
+    for pl in dummy_players:
+        game.add_player(pl)
+    game.init_game()
+    vote_all_msg = "vote all" if vote_all is not None else None
+    msg = game.get_buttons_list(tables=table, exclude_id=exclude_id, vote_all_str=vote_all_msg)
+    joined_list = flatten_button_list(msg)
+    for ai in assert_included:
+        assert ai in joined_list
+    for ae in assert_excluded:
+        assert ae not in joined_list
+    print(joined_list)
+
+
+def flatten_button_list(msg):
+    if msg is None:
+        return []
+    joined_list = []
+    for l in msg:
+        joined_list += [b for a, b in l]
+    return joined_list
+

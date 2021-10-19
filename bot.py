@@ -1,12 +1,13 @@
 #!/usr/bin/env python
 import logging
 
-from telegram import Update, ForceReply
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext, CallbackQueryHandler
 from enum import Enum
 import time
 import re
 import random
+import os
 
 from onuwgame import Game
 
@@ -69,8 +70,10 @@ def game(update: Update, context: CallbackContext) -> None:
     gameObj.init_game()
     for p in gameObj.human_pl:
         update.message.bot.send_message(p["id"], "Игра начинается")
-        update.message.bot.send_message(p["id"], f'Список игроков:\n {gameObj.list_of_players_by_number()}')
-        update.message.bot.send_message(p["id"], gameObj.get_init_message(p))
+        update.message.bot.send_message(p["id"], f'Список игроков:\n{gameObj.list_of_players_by_number()}')
+        msg, options = gameObj.get_init_message(p)
+        update.message.bot.send_message(p["id"], msg, reply_markup=reply_keyboard_markup(options))
+    kill_alarms(context)
     stateFlag = State.INIT
     if gameObj.check_actions_cast():
         #пауза на случай если все игроки мирные или оборотни
@@ -108,7 +111,8 @@ def alarm10(context: CallbackContext) -> None:
 def alarm15(context: CallbackContext) -> None:
     context.bot.send_message(context.job.context, timer_msg[2])
     voting_list = gameObj.list_of_human_players_by_number_for_voting(True)
-    context.bot.send_message(context.job.context,  "Список на голосование:\n" + voting_list)
+    voting_reply_markup = reply_keyboard_markup(gameObj.get_buttons_list(tables=False, vote_all_str="Никого не убивать"))
+    context.bot.send_message(context.job.context,  "Список на голосование:\n" + voting_list, reply_markup=voting_reply_markup)
 
 
 def kill_alarms(context: CallbackContext) -> bool:
@@ -128,9 +132,10 @@ def action_phase(update: Update, context: CallbackContext):
         voting_list = gameObj.list_of_human_players_by_number_for_voting(True)
         for p in gameObj.human_pl:
             if len(p["msg"]) > 0:
-                update.message.bot.send_message(p["id"], p["msg"])
-            update.message.bot.send_message(p["id"], "Все действия совершены. Можно начинать обсуждение!")
-            update.message.bot.send_message(p["id"], "Список на голосование:\n" + voting_list)
+                context.bot.send_message(p["id"], p["msg"])
+            context.bot.send_message(p["id"], "Все действия совершены. Можно начинать обсуждение!")
+            voting_reply_markup = reply_keyboard_markup(gameObj.get_buttons_list(tables=False, exclude_id=p["id"], vote_all_str="Никого не убивать"))
+            context.bot.send_message(p["id"], "Список на голосование:\n" + voting_list, reply_markup=voting_reply_markup)
             context.job_queue.run_once(alarm5, timeout, context=p["id"], name=ALARM_JOB_ID)
             context.job_queue.run_once(alarm10, 2*timeout, context=p["id"], name=ALARM_JOB_ID)
             context.job_queue.run_once(alarm15, 3*timeout, context=p["id"], name=ALARM_JOB_ID)
@@ -144,22 +149,38 @@ def vote_phase(update: Update, context: CallbackContext):
         kill_alarms(context)
         result, msg = gameObj.implement_votes()
         for p in gameObj.human_pl:
-            update.message.bot.send_message(p["id"], msg)
+            context.bot.send_message(p["id"], msg)
             personal_result, msg_per = gameObj.get_personal_result(result, p["id"])
-            update.message.bot.send_message(p["id"], msg_per)
+            context.bot.send_message(p["id"], msg_per)
         logger.info("Game Ended")
         logger.info(gameObj.get_history())
 
 
+def reply_keyboard_markup(buttons_list):
+    if buttons_list is None:
+        return None
+    keyboard_list = []
+    for row in buttons_list:
+        krow = []
+        for t in row:
+            text, command = t
+            krow.append(InlineKeyboardButton(text, callback_data=command))
+        if len(krow) > 0:
+            keyboard_list.append(krow)
+    return InlineKeyboardMarkup(keyboard_list)
+
+
 def echo(update: Update, context: CallbackContext) -> None:
-    logger.info(f"{str(update.effective_user)}, {update.message.text}")
+    logger.info(f"{str(update.effective_user)}, {update.callback_query.data}")
+    query = update.callback_query
     global stateFlag
-    num = int(re.search(r"/?([0-9]+)", update.message.text).group(1))
+    num = int(re.search(r"/?([0-9]+)", update.callback_query.data).group(1))
+    query.answer()
     if stateFlag == State.STOPPED:
         return
     if stateFlag == State.INIT:
         res, msg = gameObj.action(update.effective_user, num)
-        update.message.reply_text(msg)
+        query.message.reply_text(msg)
         action_phase(update, context)
         return
     if stateFlag == State.VOTE:
@@ -170,8 +191,7 @@ def echo(update: Update, context: CallbackContext) -> None:
 
 
 def main() -> None:
-    with open('secret.token', 'r') as file:
-        token = file.read()
+    token = os.environ["SECRET_TOKEN"]
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
     updater = Updater(token)
@@ -186,9 +206,8 @@ def main() -> None:
     # dispatcher.add_handler(CommandHandler("remove", remove))
     dispatcher.add_handler(CommandHandler("help", help_command))
     dispatcher.add_handler(CommandHandler("game", game))
-    for i in range(0, 20):
-        dispatcher.add_handler(CommandHandler(str(i), echo))
 
+    dispatcher.add_handler(CallbackQueryHandler(echo))
     # on non command i.e message - echo the message on Telegram
     dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
 

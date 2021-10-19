@@ -115,4 +115,4 @@ dmypy.json
 
 #Pycharm
 .idea
-secret.token
+*.token

@@ -104,19 +104,36 @@ class Game:
     def get_num_of_players(self):
         return len(self.players_list)
 
+    def get_buttons_list(self, tables=True, exclude_id=None, vote_all_str=None):
+        ret_list = []
+        if tables:
+            ret_list.append([
+                ("Стол 1", "1"),
+                ("Стол 2", "2"),
+                ("Стол 3", "3"),
+            ])
+        players_list = []
+        for p in self.human_pl:
+            if p["id"] != exclude_id:
+                players_list.append((p["name"], str(p["num"])))
+        ret_list.append(players_list)
+        if vote_all_str is not None:
+            ret_list.append([(vote_all_str, "0")])
+        return ret_list
+
     def get_init_message(self, p):
         if p["starts_as"] == Roles.VILLAGER:
-            return "Вы мирный житель\nПодождите пока остальные жители сделают свой ход"
+            return "Вы мирный житель\nПодождите пока остальные жители сделают свой ход", None
         if p["starts_as"] == Roles.WEREWOLF:
-            return "Вы оборотень\nПодождите пока остальные жители сделают свой ход"
+            return "Вы оборотень\nПодождите пока остальные жители сделают свой ход", None
         if p["starts_as"] == Roles.TROUBLEMAKER:
-            return "Вы баламут\nвыберете двух игроков чтобы поменять их роли местами"
+            return "Вы баламут\nвыберите двух игроков чтобы поменять их роли местами", self.get_buttons_list(exclude_id=p["id"])
         if p["starts_as"] == Roles.ROBBER:
-            return "Вы вор\nвыберете номер игрока чтобы украсть его роль"
+            return "Вы вор\nвыберите номер игрока чтобы украсть его роль", self.get_buttons_list(exclude_id=p["id"])
         if p["starts_as"] == Roles.SEER:
-            return "Вы ясновидящий\nвыберете номер игрока чтобы увидеть его роль.\nИли два номера ненастоящих игрков"
+            return "Вы ясновидящий\nвыберите номер игрока чтобы увидеть его роль.\nИли два номера ненастоящих игрков", self.get_buttons_list(exclude_id=p["id"])
         if p["starts_as"] == Roles.INSOMNIAC:
-            return "Вы лунатик\nПодождите пока остальные жители сделают свой ход"
+            return "Вы лунатик\nПодождите пока остальные жители сделают свой ход", None
 
     def shuffle_roles(self):
         roles = DEFAULT_ROLES[:len(self.pl)]
@@ -176,25 +193,25 @@ class Game:
     def list_of_players_by_number(self):
         msg = ""
         for key, p in self.n.items():
-            msg += f' /{key}: {p["name"]}\n'
+            msg += f'{key}: {p["name"]}\n'
         return msg
 
     def list_of_human_players_by_number_for_voting(self, vote_for_all=False):
         msg = ""
         if vote_for_all:
-            msg = '/0: Никого не убивать\n'
+            msg = '0: Никого не убивать\n'
         for key, p in self.n.items():
             if p["type"] == "human":
-                msg += f' /{key}: {p["name"]}\n'
+                msg += f'{key}: {p["name"]}\n'
         return msg
 
     def action(self, user, action):
         if not isinstance(action, int):
             return False, f"Неверная команда '{action}'"
         if action <= 0:
-            return False, f"Неверная команда '{action}' - выберете номер игрока"
+            return False, f"Неверная команда '{action}' - выберите номер игрока"
         if action > len(self.pl):
-            return False, f"Неверная команда '{action}' - такого игра нет"
+            return False, f"Неверная команда '{action}' - такого игрока нет"
         for p in self.human_pl:
             if user['id'] == p['id']:
                 if p["night_action_done"]:
@@ -202,10 +219,13 @@ class Game:
                 if action == p["num"]:
                     return False, f'Нельзя выбирать себя'
                 if p["starts_as"] == Roles.TROUBLEMAKER:
-                    p["night_action"].append(action)
-                    if len(p["night_action"]) == 1:
+                    if len(p["night_action"]) == 0:
+                        p["night_action"].append(action)
                         return True, f'Принято {p["night_action"][0]}. Второй игрок?'
                     else:
+                        if action in p["night_action"]:
+                            return False, f'{action} уже выбран. Второй игрок?'
+                        p["night_action"].append(action)
                         p["night_action_done"] = True
                         return True, f'Принято {p["night_action"][0]} и {p["night_action"][1]}'
                 if p["starts_as"] == Roles.SEER:
