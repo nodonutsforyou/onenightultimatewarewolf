@@ -76,6 +76,14 @@ starting_players = [
 ]
 
 
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    ret = []
+    for i in range(0, len(lst), n):
+        ret.append(lst[i:i + n])
+    return  ret
+
+
 class Game:
     # Game Lobby status
     players_list = []
@@ -116,16 +124,21 @@ class Game:
         for p in self.human_pl:
             if p["id"] != exclude_id:
                 players_list.append((p["name"], str(p["num"])))
-        ret_list.append(players_list)
+        ret_list += chunks(players_list, 3)
         if vote_all_str is not None:
             ret_list.append([(vote_all_str, "0")])
         return ret_list
 
+
+    def get_ok_button(self):
+        return [[("Ok", "OK")]]
+
+
     def get_init_message(self, p):
         if p["starts_as"] == Roles.VILLAGER:
-            return "Вы мирный житель\nПодождите пока остальные жители сделают свой ход", None
+            return "Вы мирный житель\nПодождите пока остальные жители сделают свой ход", self.get_ok_button()
         if p["starts_as"] == Roles.WEREWOLF:
-            return "Вы оборотень\nПодождите пока остальные жители сделают свой ход", None
+            return "Вы оборотень\nПодождите пока остальные жители сделают свой ход", self.get_ok_button()
         if p["starts_as"] == Roles.TROUBLEMAKER:
             return "Вы баламут\nвыберите двух игроков чтобы поменять их роли местами", self.get_buttons_list(exclude_id=p["id"])
         if p["starts_as"] == Roles.ROBBER:
@@ -207,6 +220,8 @@ class Game:
 
     def action(self, user, action):
         if not isinstance(action, int):
+            if str(action) == "OK":
+                return True
             return False, f"Неверная команда '{action}'"
         if action <= 0:
             return False, f"Неверная команда '{action}' - выберите номер игрока"
@@ -252,16 +267,27 @@ class Game:
         return False, f'Не удалось найти пользователя: {str(user)} (действие {str(action)})'
 
     def vote(self, user, vote):
+        if not isinstance(vote, int):
+            if str(vote) == "OK":
+                return True, None
+            return False, f"Неверная команда '{vote}'"
         done = False
+        voted_name = None
         if vote > 3 or vote == 0:
             for p in self.human_pl:
                 if user['id'] == p['id']:
                     p["vote"] = vote
                     done = True
+                    if vote > 0:
+                        voted_name = "Принят голос против " + self.n[vote]["name"]
+                    else:
+                        voted_name = "Принят голос 'Никого не убивать'"
         if not done:
-            logging.error(f'Не удалось найти пользователя: {str(user)} (голос {str(vote)})')
+            msg = f'Не удалось найти пользователя: {str(user)} (голос {str(vote)})'
+            logging.error(msg)
+            return False, msg
         #TODO check action correctness
-        return True
+        return True, voted_name
 
     def check_actions_cast(self):
         result = True
@@ -296,13 +322,13 @@ class Game:
             if p["starts_as"] == Roles.SEER:
                 a = p["night_action"]
                 if len(a) == 1:
-                    p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}'
+                    p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"].value}'
                 else:
-                    p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}, а {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"]}'
+                    p["msg"] = f'Зеркальный шар показал, что {self.n[a[0]]["name"]} -- {self.n[a[0]]["starts_as"].value}, а {self.n[a[1]]["name"]} -- {self.n[a[1]]["starts_as"].value}'
             # Вор
             if p["starts_as"] == Roles.ROBBER:
                 a = p["night_action"]
-                p["msg"] = f'Украденные документы подверждают, что вы теперь -- {self.n[a]["starts_as"]}'
+                p["msg"] = f'Украденные документы подверждают, что вы теперь -- {self.n[a]["starts_as"].value}'
                 p["new_role"], self.n[a]["new_role"] = self.n[a]["new_role"], p["new_role"]
         for p in self.human_pl:
             # Баламут

@@ -201,6 +201,8 @@ def test_exclude_id(table, exclude_id, vote_all, assert_included, assert_exclude
     game.init_game()
     vote_all_msg = "vote all" if vote_all is not None else None
     msg = game.get_buttons_list(tables=table, exclude_id=exclude_id, vote_all_str=vote_all_msg)
+    for row in msg:
+        assert len(row) < 4, str(row) + "len greater than 3"
     joined_list = flatten_button_list(msg)
     for ai in assert_included:
         assert ai in joined_list

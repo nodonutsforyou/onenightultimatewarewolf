@@ -30,8 +30,8 @@ class State(Enum):
 stateFlag = State.STOPPED
 
 timer_countdown = 0
-# timeout = 5 * 60
-timeout = 10
+timeout = 5 * 60
+# timeout = 10
 timer_msg = {
     0: "Прошло 5 минут",
     1: "Прошло 10 минут",
@@ -171,10 +171,17 @@ def reply_keyboard_markup(buttons_list):
 
 
 def echo(update: Update, context: CallbackContext) -> None:
-    logger.info(f"{str(update.effective_user)}, {update.callback_query.data}")
+    value = str(update.callback_query)
+    if hasattr(update.callback_query, "data"):
+        value = update.callback_query.data
+    logger.info(f"{str(update.effective_user)}, {value}")
     query = update.callback_query
     global stateFlag
-    num = int(re.search(r"/?([0-9]+)", update.callback_query.data).group(1))
+    num = None
+    if str(update.callback_query.data) == "OK":
+        num = "OK"
+    else:
+        num = int(re.search(r"/?([0-9]+)", update.callback_query.data).group(1))
     query.answer()
     if stateFlag == State.STOPPED:
         return
@@ -184,7 +191,12 @@ def echo(update: Update, context: CallbackContext) -> None:
         action_phase(update, context)
         return
     if stateFlag == State.VOTE:
-        gameObj.vote(update.effective_user, num)
+        result, msg = gameObj.vote(update.effective_user, num)
+        if result:
+            if msg is not None:
+                query.message.reply_text(msg)
+        elif not result:
+            query.message.reply_text("ошибка: " + msg)
         vote_phase(update, context)
         return
     #update.message.reply_text(update.message.text)
