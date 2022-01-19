@@ -12,6 +12,27 @@ dummy_players = [
     {'first_name': 'Ruslan', 'last_name': 'VI', 'id': "6", 'language_code': 'en', 'is_bot': False},
 ]
 
+dummy_players_large_list = [
+    {'first_name': 'Peotr', 'last_name': 'I', 'id': "1", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Vaysa', 'last_name': 'II', 'id': "2", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Goasha', 'last_name': 'III', 'id': "3", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'IVAN', 'last_name': 'IV', 'id': "4", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Sputnik', 'last_name': 'V', 'id': "5", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Ruslan', 'last_name': 'VI', 'id': "6", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Peotr', 'last_name': 'I', 'id': "11", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Vaysa', 'last_name': 'II', 'id': "12", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Goasha', 'last_name': 'III', 'id': "13", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'IVAN', 'last_name': 'IV', 'id': "14", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Sputnik', 'last_name': 'V', 'id': "15", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Ruslan', 'last_name': 'VI', 'id': "16", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Peotr', 'last_name': 'I', 'id': "21", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Vaysa', 'last_name': 'II', 'id': "22", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Goasha', 'last_name': 'III', 'id': "23", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'IVAN', 'last_name': 'IV', 'id': "24", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Sputnik', 'last_name': 'V', 'id': "25", 'language_code': 'en', 'is_bot': False},
+    {'first_name': 'Ruslan', 'last_name': 'VI', 'id': "26", 'language_code': 'en', 'is_bot': False},
+]
+
 def try_cast_an_action(g, p, a, a2):
     try:
         g.action(p, a)
@@ -70,6 +91,42 @@ ROLES_LIST_5_WITH_INSOMNIAC = [
     Roles.INSOMNIAC,        # 4
     Roles.VILLAGER,         # 5
     Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
+]
+
+ROLES_LIST_6_WITH_MASONS = [
+    Roles.VILLAGER,         # 1
+    Roles.WEREWOLF,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.MASON,            # 4
+    Roles.MASON,            # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
+]
+
+ROLES_LIST_7_WITH_MASONS = [
+    Roles.MASON,            # 1
+    Roles.WEREWOLF,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.MASON,            # 4
+    Roles.VILLAGER,         # 5
+    Roles.VILLAGER,         # 6
+    Roles.TROUBLEMAKER,     # 7
+    Roles.ROBBER,           # 8
+    Roles.SEER,             # 9
+]
+
+ROLES_LIST_8_WITH_MASONS = [
+    Roles.VILLAGER,         # 1
+    Roles.WEREWOLF,         # 2
+    Roles.WEREWOLF,         # 3
+    Roles.VILLAGER,            # 4
+    Roles.MASON,            # 5
+    Roles.MASON,         # 6
     Roles.TROUBLEMAKER,     # 7
     Roles.ROBBER,           # 8
     Roles.SEER,             # 9
@@ -166,6 +223,29 @@ def test_insomniac(roles, players, actions, votes, expected_role):
             print(p["msg"])
 
 
+@pytest.mark.parametrize("roles,players,actions,votes,expected_result",
+                         [
+                             pytest.param(ROLES_LIST_6_WITH_MASONS, dummy_players, [[], [], [], [4, 5], [5], [4]], [5, 6, 5, 5, 5, 5], "Этой ночью вам не пришлось быть одному в массонской ложе. Потому что Vaysa II - тоже масон"),
+                             pytest.param(ROLES_LIST_7_WITH_MASONS, dummy_players, [[], [], [], [4, 5], [5], [4]], [5, 6, 5, 5, 5, 5], "Этой ночью вы пришли на собрание массонов одни. Вы, кажется, единственный Масон в этой деревне"),
+                             pytest.param(ROLES_LIST_8_WITH_MASONS, dummy_players, [[], [], [], [4, 5], [5], [4]], [5, 6, 5, 5, 5, 5], "Этой ночью вам не пришлось быть одному в массонской ложе. Потому что Goasha III - тоже масон"),
+                         ],
+                         )
+def test_masons(roles, players, actions, votes, expected_result):
+    game = Game()
+    for pl in players:
+        game.add_player(pl)
+    game.init_game(roles)
+    for pl, acs in zip(players, actions):
+        for a in acs:
+            game.action(pl, a)
+    game.implement_actions()
+    for p in game.human_pl:
+        if p["starts_as"] == Roles.MASON:
+            assert expected_result == p["msg"]
+            print(p["msg"])
+            return
+
+
 @pytest.mark.parametrize("run", range(10))
 def test_shufle_roles(run):
     game = Game()
@@ -178,13 +258,46 @@ def test_shufle_roles(run):
         role_count[r] = 0
     for r in assigned_roles:
         role_count[r] += 1
-    assert len(dummy_players) == 6
+    assert len(game.human_pl) == 6
     assert len(assigned_roles) == 9
     assert role_count[Roles.VILLAGER] == 4
     assert role_count[Roles.WEREWOLF] == 2
     assert role_count[Roles.TROUBLEMAKER] == 1
     assert role_count[Roles.ROBBER] == 1
     assert role_count[Roles.SEER] == 1
+
+
+@pytest.mark.parametrize("number_of_players", range(3, 18))
+def test_shufle_roles_with_added(number_of_players):
+    game = Game()
+    game.players_list = []
+    i = 0
+    while i < number_of_players:
+        game.add_player(dummy_players_large_list[i])
+        i += 1
+    game.init_game()
+    assigned_roles = [p["starts_as"] for p in game.pl]
+    role_count = {}
+    for r in Roles:
+        role_count[r] = 0
+    for r in assigned_roles:
+        role_count[r] += 1
+    assert len(game.human_pl) == number_of_players
+    assert len(assigned_roles) == number_of_players + 3
+    assert role_count[Roles.VILLAGER] > 0
+    assert role_count[Roles.WEREWOLF] == 2
+    assert role_count[Roles.TROUBLEMAKER] == 1
+    assert role_count[Roles.ROBBER] == 1
+    assert role_count[Roles.SEER] == 1
+    if number_of_players > 6:
+        assert role_count[Roles.INSOMNIAC] == 1
+    else:
+        assert role_count[Roles.INSOMNIAC] == 0
+    if number_of_players > 8:
+        assert role_count[Roles.MASON] == 2
+    else:
+        assert role_count[Roles.MASON] == 0
+    assert number_of_players == role_count[Roles.VILLAGER] + 2 + role_count[Roles.INSOMNIAC] + role_count[Roles.MASON]
 
 @pytest.mark.parametrize("table, exclude_id, vote_all, assert_included, assert_excluded",
                          [

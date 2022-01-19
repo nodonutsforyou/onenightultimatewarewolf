@@ -70,7 +70,7 @@ def game(update: Update, context: CallbackContext) -> None:
     gameObj.init_game()
     for p in gameObj.human_pl:
         update.message.bot.send_message(p["id"], "Игра начинается")
-        update.message.bot.send_message(p["id"], f'Список игроков:\n{gameObj.list_of_players_by_number()}')
+        update.message.bot.send_message(p["id"], f'Список игроков:\n{gameObj.list_of_players_by_number()}\n\n{gameObj.get_roles_count()}')
         msg, options = gameObj.get_init_message(p)
         update.message.bot.send_message(p["id"], msg, reply_markup=reply_keyboard_markup(options))
     kill_alarms(context)
@@ -151,7 +151,7 @@ def vote_phase(update: Update, context: CallbackContext):
         for p in gameObj.human_pl:
             context.bot.send_message(p["id"], msg)
             personal_result, msg_per = gameObj.get_personal_result(result, p["id"])
-            context.bot.send_message(p["id"], msg_per)
+            context.bot.send_message(p["id"], msg_per + "\n\n\n" + gameObj.get_history())
         logger.info("Game Ended")
         logger.info(gameObj.get_history())
 
