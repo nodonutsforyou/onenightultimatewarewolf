@@ -113,14 +113,15 @@ class Game:
     def get_num_of_players(self):
         return len(self.players_list)
 
-    def get_buttons_list(self, exclude_id=None, vote_all_str=None):
+    def get_buttons_list(self, exclude_id=None, vote_all_str=None, exclude_dead=False):
         ret_list = []
         players_list = []
         if not isinstance(exclude_id, list):
             exclude_id = [exclude_id]
         for p in self.pl:
             if p["id"] not in exclude_id:
-                players_list.append((p["name"], str(p["num"])))
+                if not exclude_dead and not p["dead"]:
+                    players_list.append((p["name"], str(p["num"])))
         ret_list += chunks(players_list, 3)
         if vote_all_str is not None:
             ret_list.append([(vote_all_str, "0")])
@@ -557,6 +558,21 @@ class Game:
             return True
         return False
 
+    def check_hitler_chancellorship_wins_the_game(self):
+        lib, fas = self.count_laws()
+        return fas >= 3
+
+    def check_next_fas_law_wins_the_game(self):
+        lib, fas = self.count_laws()
+        return fas >= 5
+
+    def check_chaos_score(self):
+        return self.curent_turn_state()['chaos_score'] >= 2
+
+    def check_next_action(self):
+        lib, fas = self.count_laws()
+        return self.select_action(fas+1)
+
     def select_action(self, n=None):
         if n is None:
             lib, fas = self.count_laws()
@@ -583,16 +599,29 @@ class Game:
                     return Actions.EXECUTION
         return None
 
+    def desribe_next_action(self):
+        action = self.check_next_action()
+        if action == Actions.PEEK:
+            return "При принятии следующего фашистского закона у президента появится возможность посмотреть следующие 3 закона"
+        if action == Actions.EXECUTION:
+            return "При принятии следующего фашистского закона у президента появится власть казнить одного игрока"
+        if action == Actions.INVESTIGATE:
+            return "При принятии следующего фашистского закона у президента появится возможность проверить лояльность одного игрока"
+        if action == Actions.ELECTION:
+            return "При принятии следующего фашистского закона у президента появится возможность назначить внеочередного президента"
+        return None
+
     def action(self, user, action):
         if not isinstance(action, int):
             if str(action) == "OK":
                 return True
-            return False, f"Неверная команда '{action}'"
+            return False, f"Неверная команда '{action}'", None
         if action <= 0:
-            return False, f"Неверная команда '{action}'"
+            return False, f"Неверная команда '{action}'", None
         if action > len(self.pl):
-            return False, f"Неверная команда '{action}'"
-        if user['id'] == self.n[self.curent_turn_state()['president']]['id']:
+            return False, f"Неверная команда '{action}'", None
+        president = self.n[self.curent_turn_state()['president']]
+        if user['id'] == president['id']:
             target = self.n[action]
             lib, fas = self.count_laws()
             action_type = self.select_action(fas)
@@ -603,21 +632,21 @@ class Game:
                     msg = f'Проверка показала, что {target["name"]} - либерал'
                 else:
                     msg = f'Проверка показала, что {target["name"]} - фашист'
-                return True, msg
+                return True, msg, f"Президент {president['name']} провел *расследование* на предмет лояльности некоторых членов парламента"
             if action_type == Actions.ELECTION:
                 if user['id'] == target['id']:
-                    return False, f'Нельзя назначить себя экстренным президентом'
+                    return False, f'Нельзя назначить себя экстренным президентом', None
                 self.curent_turn_state()["action"] = action
                 self.extra_turn_president = action
-                return True, f'Следующим президентом назначается {target["name"]}'
+                return True, f'Следующим президентом назначается {target["name"]}', f"Президент {president['name']} назначил экстренного президента. В следующем ходу {target['name']} будет президентом вне очереди"
             if action_type == Actions.EXECUTION:
                 self.curent_turn_state()["action"] = action
                 target["dead"] = True
                 self.check_victory()
                 if target["role"] == Roles.HITLER:
-                    return True, f'{target["name"]} приговорен к расстрелу. {target["name"]} оказался Гитлером! Либералы победили'
-                return True, f'{target["name"]} приговорен к расстрелу'
-        return False, f'{str(user)} не президент!'
+                    return True, f'{target["name"]} приговорен к расстрелу. {target["name"]} оказался Гитлером! Либералы победили', None
+                return True, f'{target["name"]} приговорен к расстрелу', f'Президент {president["name"]} приговорил {target["name"]} приговорен к расстрелу'
+        return False, f'{str(user)} не президент!', None
 
     def implement_action(self):
         lib, fas = self.count_laws()

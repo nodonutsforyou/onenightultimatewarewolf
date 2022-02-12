@@ -46,6 +46,7 @@ def start(update: Update, context: CallbackContext) -> None:
     logger.info(str(user))
     gameObj.add_player(user)
     logger.info(str(gameObj.get_list_of_players()))
+    context.bot.set_my_commands([("start", "start")])
     update.message.reply_markdown_v2(
         f"Hi {user.mention_markdown_v2()}\\!\nWe have those players joined:\n{gameObj.get_list_of_players()}"
     )

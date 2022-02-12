@@ -54,6 +54,7 @@ def start(update: Update, context: CallbackContext) -> None:
     logger.info(str(user))
     gameObj.add_player(user)
     logger.info(str(gameObj.get_list_of_players()))
+    context.bot.set_my_commands([("start", "start")])
     update.message.reply_markdown_v2(
         f"Hi {user.mention_markdown_v2()}\\!\nWe have those players joined:\n{gameObj.get_list_of_players()}"
     )
@@ -157,16 +158,28 @@ def pick_chancellor(update: Update, context: CallbackContext):
     chancellor_n = gameObj.curent_turn_state()["chancellor_candidate"]
     chancellor = gameObj.n[chancellor_n]
     vote_markup = reply_keyboard_markup([[("Ja", 1),("Nein", 0)]])
+    warnings = ""
+    if gameObj.check_hitler_chancellorship_wins_the_game():
+        warnings += "* Если кандидат окажется *Гитлером*, то либералы проиграют игру\n"
+    if gameObj.check_next_fas_law_wins_the_game():
+        warnings += "* Если президент вместе с канслером примут фашистский закон, то либералы проиграют игру\n"
+    if gameObj.check_chaos_score():
+        warnings += f"* Если парлмент откажет {chancellor['name']}, то {president['name']} примет следующий закон автоматически\n"
+    if gameObj.check_chaos_score():
+        warnings += f"* Если парлмент откажет {chancellor['name']}, то {president['name']} примет следующий закон автоматически\n"
+    next_action = gameObj.desribe_next_action()
+    if next_action is not None:
+        warnings += next_action + "\n"
     for p in gameObj.pl:
         if p["num"] == president_n:
-            context.bot.send_message(p["id"], f"Вы выбрали {chancellor['name']} кандидатом в канцлеры в этом ходу\nУтвердить?", reply_markup=vote_markup)
+            context.bot.send_message(p["id"], f"Вы выбрали {chancellor['name']} кандидатом в канцлеры в этом ходу\n{warnings}Утвердить?", reply_markup=vote_markup)
         elif p["num"] == chancellor_n:
-            context.bot.send_message(p["id"], f"Президент {president['name']} выбрал Вас, {chancellor['name']}, кандидатом в канцлеры в этом ходу\nУтвердить?", reply_markup=vote_markup)
+            context.bot.send_message(p["id"], f"Президент {president['name']} выбрал Вас, {chancellor['name']}, кандидатом в канцлеры в этом ходу\n{warnings}Утвердить?", reply_markup=vote_markup)
         else:
             if not p["dead"]:
-                context.bot.send_message(p["id"], f"Президент {president['name']} выбрал {chancellor['name']} кандидатом в канцлеры в этом ходу\nУтвердить?", reply_markup=vote_markup)
+                context.bot.send_message(p["id"], f"Президент {president['name']} выбрал {chancellor['name']} кандидатом в канцлеры в этом ходу\n{warnings}Утвердить?", reply_markup=vote_markup)
             else:
-                context.bot.send_message(p["id"], f"Президент {president['name']} выбрал {chancellor['name']} кандидатом в канцлеры в этом ходу\nУтвердить?")
+                context.bot.send_message(p["id"], f"Президент {president['name']} выбрал {chancellor['name']} кандидатом в канцлеры в этом ходу")
             #TODO предупреждения о правилах
     logger.info("president Phase")
 
@@ -196,23 +209,24 @@ def action_phase(update: Update, context: CallbackContext):
         president = gameObj.n[president_n]
         action = gameObj.select_action()
         actions_markup = reply_keyboard_markup(gameObj.get_buttons_list(exclude_id=president["id"]))
+        actions_markup_dead_exluded = reply_keyboard_markup(gameObj.get_buttons_list(exclude_id=president["id"], exclude_dead=True))
         for p in gameObj.pl:
             if p["num"] == president_n:
                 if action == Actions.INVESTIGATE:
                     context.bot.send_message(p["id"], "Выберите игрока на проверку", reply_markup=actions_markup)
                     return
                 if action == Actions.ELECTION:
-                    context.bot.send_message(p["id"], "Выберите следующего президента", reply_markup=actions_markup)
+                    context.bot.send_message(p["id"], "Выберите следующего президента", reply_markup=actions_markup_dead_exluded)
                     return
                 if action == Actions.EXECUTION:
-                    context.bot.send_message(p["id"], "Выберите игрока на растрел", reply_markup=actions_markup)
+                    context.bot.send_message(p["id"], "Выберите игрока на растрел", reply_markup=actions_markup_dead_exluded)
                     return
                 if action == Actions.PEEK:
                     laws = gameObj.view_laws(3)
                     s = ""
                     for l in laws:
                         s += l["description"] + "\n"
-                    context.bot.send_message(p["id"], f"Следующие 3 закон в колоде: \n{s}")
+                    context.bot.send_message(p["id"], f"Следующие 3 закона в колоде: \n{s}")
                     new_turn(update, context)
                     return
 
@@ -262,16 +276,7 @@ def vote_phase(update: Update, context: CallbackContext):
             for p in gameObj.pl:
                 if p["num"] == chancellor_n:
                     context.bot.send_message(p["id"], "Вас выбрали Канцлером!\nСписок законов на увержедние (вы можете отклонить один из них):", reply_markup=decoration)
-                else:
-                    context.bot.send_message(p["id"], f"{chancellor['name']} выбран Канцлером!\n")
         else:
-            chancellor_n = gameObj.curent_turn_state()["chancellor_candidate"]
-            chancellor = gameObj.n[chancellor_n]
-            for p in gameObj.pl:
-                if p["num"] == chancellor_n:
-                    context.bot.send_message(p["id"], "Вам отказали в должности Канцлера!")
-                else:
-                    context.bot.send_message(p["id"], f"Канцлер в этом ходу не выбран")
             stateFlag = State.IMPLEMENTATION
             action_phase(update, context)
 
@@ -333,26 +338,26 @@ def endgame_phase(update: Update, context: CallbackContext, msg=None):
     if not gameObj.status is None:
         for p in gameObj.pl:
             context.bot.send_message(p["id"], f"Игра завершена\n{msg}\n{gameObj.get_fashists_list()}")
-    logging.info(dict_to_str(gameObj.game_state))
+    logging.info(game_state_logger(gameObj.n))
+    logging.info(game_state_logger(gameObj.game_state))
 
-def dict_to_str(d, margin=0):
-    ms = ""
-    i = 0
-    while i < margin:
-        ms += " "
-        i += 1
-    s = ms
-    if isinstance(d, dict):
-        for k, v in d.items():
-            s += f"{str(k)}: {dict_to_str(v, margin+1)}"
-        s += "\n"
-        return s
-    if isinstance(d, list):
-        for k in d:
-            s += f"{str(k)}: {dict_to_str(k, margin+1)}"
-        s += "\n"
-        return s
-    return str(d) + "\n"
+def game_state_logger(game_state):
+    s = ""
+    for turn, state in game_state.items():
+        s += f"turn {turn}:\n"
+        for key, value in state.items():
+            if isinstance(value, dict):
+                s += f"\t{key}:\n"
+                for kk, vv in value.items():
+                    s += f"\t\t{kk}:{str(vv)}\n"
+            if isinstance(value, list):
+                s += f"\t{key}:\n\t\t"
+                for i in value:
+                    s += f"{str(i)},"
+                s += f"\n"
+            else:
+                s += f"\t{key}:{str(value)}\n"
+    return s
 
 
 def reply_keyboard_markup(buttons_list):
@@ -421,12 +426,16 @@ def echo(update: Update, context: CallbackContext) -> None:
         action_phase(update, context)
         return
     if stateFlag == State.IMPLEMENTATION:
-        result, msg = gameObj.action(update.effective_user, num)
+        result, msg, msg_all = gameObj.action(update.effective_user, num)
         if result:
             if msg is not None:
                 query.message.reply_text(msg)
         elif not result:
             query.message.reply_text("ошибка: " + msg)
+        if msg_all is not None:
+            for p in gameObj.pl:
+                if update.effective_user.id !=p["id"]:
+                    context.bot.send_message(p["id"], msg_all)
         action_implementation_phase(update, context)
         return
     if stateFlag == State.VETO:

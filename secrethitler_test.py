@@ -2,6 +2,7 @@ import pytest
 import json
 from secrethitler import Game, Roles, Law, Actions
 from contextlib import contextmanager
+from hitlerbot import game_state_logger
 
 dummy_players = [
     {'first_name': 'Peotr', 'last_name': 'I', 'id': "1", 'language_code': 'en', 'is_bot': False},
@@ -394,8 +395,8 @@ def test_games(roles, laws, players, starting_player, actions, expected, expecte
                         print("turn " + str(turn))
                         assert not (a is None), "action was needed turn " + str(turn)
                 else:
-                    ra, msg = game.action(players[p-1], a)
-                    assert ra, msg
+                    ra, msg, msg_all = game.action(players[p-1], a)
+                    assert ra, f"{msg} (message for all: {str(msg_all)}"
                     r = game.implement_action()
             else:
                 assert a is None, "No action was planned for this turn " + str(turn)
@@ -416,6 +417,10 @@ def test_games(roles, laws, players, starting_player, actions, expected, expecte
         game_end, side_won, msg = game.status
         assert expected == side_won
         assert msg == expected_msg
+    userlog = game_state_logger(game.n)
+    log = game_state_logger(game.game_state)
+    print(userlog)
+    print(log)
 
     # working with possible exception from here\
     print(str(error))
@@ -478,7 +483,7 @@ def test_investigate(roles, laws, players, starting_player, actions, expected, e
                 if a is None:
                     print("turn " + str(turn))
                     assert not (a is None), "action was needed"
-                check, result = game.action(players[starting_player-1], a)
+                check, result, msg_all = game.action(players[starting_player-1], a)
                 assert check, msg
                 r = game.implement_action()
             else:
@@ -593,6 +598,7 @@ def test_init_messages(roles, players, player_to_check, expected_msg):
     game.init_game(roles=roles)
     msg = game.get_init_message(game.n[player_to_check])
     assert expected_msg in msg
+
 
 def get_pl_by_name(game, name):
     for p in game.pl:
