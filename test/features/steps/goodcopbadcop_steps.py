@@ -33,7 +33,7 @@ def reset_all():
     statebot.logger.propagate = False
 
 
-@given('we start a simple game')
+@given('we start a simple cop game')
 def step_impl(context):
     reset_all()
     global game, players
@@ -43,7 +43,7 @@ def step_impl(context):
     game.init_game(starting_player=1)
 
 
-@given('we start a game with user {user} having {item}')
+@given('we start a cop game with user {user} having {item}')
 def step_impl(context, user, item):
     reset_all()
     global game, players
@@ -209,7 +209,8 @@ def step_impl(context, active_user, target_desc):
     assert 'В кого направить пистолет?' in msg
     assert target_n in cmds
     mock.echo(players[active_user_n-1], target_n)
-    check_turn_ends()
+    if 'COFFEE' not in game.current_turn_state():
+        check_turn_ends()
 
 
 @when('user {active_user} aims at enemy leader')
@@ -220,7 +221,8 @@ def step_impl(context, active_user):
     enemy_leader: CopPlayer
     spetial_players["enemy_leader"] = enemy_leader.num
     mock.echo(players[active_user_n-1], enemy_leader.num)
-    check_turn_ends()
+    if 'COFFEE' not in game.current_turn_state():
+        check_turn_ends()
 
 
 @when('user {active_user} shoots')
@@ -232,6 +234,8 @@ def step_impl(context, active_user):
     mock.echo(players[active_user_n-1], SHOOT)
     if target.check_leader() and target.dead:
         check_end_game()
+    elif 'COFFEE' in game.current_turn_state():
+        pass
     else:
         check_turn_ends()
     assert not active_user.gun, "active_user still has gun"
@@ -355,6 +359,7 @@ def step_impl(context, user):
     mock.echo(players[active_user_n-1], enemy_leader_n)
     state_msg, msg = get_last_error()
     assert 'Нельзя выбрать ту же самую цель' in msg
+    mock.echo(players[active_user_n-1], 3)
 
 
 @then('{user} is a winner')

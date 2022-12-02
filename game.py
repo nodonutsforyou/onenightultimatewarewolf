@@ -131,8 +131,8 @@ class Game:
         return None
 
     @staticmethod
-    def check_input_values(value, min_value, max_value, ok_alowed=False):
-        if not isinstance(value, int):
+    def check_input_values(value, min_value, max_value, ok_alowed=False, str_allowed=False):
+        if str_allowed or not isinstance(value, int):
             if ok_alowed and str(value) == "OK":
                 return Result()
             return Result.error(f"Неверная команда '{value}'")
@@ -141,6 +141,12 @@ class Game:
         if value > max_value:
             return Result.error(f"Неверная команда '{value}'")
         return None
+
+    def prefilled_dict(self, value):
+        d = {}
+        for key, p in self.n.items():
+            d[key] = copy.deepcopy(value)
+        return d
 
     # Abstract Methods
     def get_init_message(self, p: Player):
@@ -153,4 +159,24 @@ class Game:
         raise Exception("Abstract method")
 
     def do_action(self, user, action) -> Result:
-        raise Exception("Abstract method")
+        s_state = self.state
+        r = self._do_action(user, action)
+        self.current_turn_state()["logs"].append((f"user {str(user)} action {str(action)} on state {s_state.value}->{self.state.value}", r))
+        return r
+
+    def update_players(self, player_class=Player):
+        num = self.len + 1
+        added = []
+        for pl_obj in self.players_list:
+            id = pl_obj['id']
+            if self.get_player_by_id(id) is None:
+                new_player = player_class(num, pl_obj)
+                self.pl.append(new_player)
+                added.append(new_player)
+                num += 1
+        self.len = len(self.pl)
+        # делаем номерной список
+        for p in self.pl:
+            p: Player
+            self.n[p.num] = p
+        return added

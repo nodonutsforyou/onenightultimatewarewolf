@@ -3,21 +3,15 @@ import random
 import json
 import copy
 import math
-from enum import Enum
 from datetime import datetime
-from player import Player
 from game import Game
+from goodcopbadcop.cop_player import CopPlayer
+from goodcopbadcop.roles import Roles
+from player import Player
 from util import *
+
 random.seed(datetime.now())
 
-
-class Roles(Enum):
-    def toJSON(self):
-        return str(self)
-    GOOD = "👮 Хороший коп"
-    AGENT = "🕵 Комиссар"
-    BAD = "💰 Плохой коп"
-    KINGPIN = "😈 Вор в законе"
 
 # Globals
 DEFAULT_CARDS = [
@@ -61,7 +55,7 @@ EQUIPMENT_INIT_DECK = [
     Equipment.DEFIBRILLATOR,
     Equipment.SURVEILLANCE_CAMERA,
     Equipment.TAZER,
-    # Equipment.COFFEE,
+    Equipment.COFFEE,
     # Equipment.BRIBE,
     Equipment.WIRETAP,
 ]
@@ -122,139 +116,6 @@ ACTION_DICT = {
 }
 
 
-class CopPlayer(Player):
-    cards = {}
-    public_cards = {}
-    gun = False
-    aim = -1
-    wounded = False
-    equipment = []
-
-    def has_more_than_one_item(self):
-        return len(self.equipment) > 1
-
-    def get_equipment(self):
-        return self.equipment[0]
-
-    def has_equipment(self):
-        return len(self.equipment) > 0
-
-    def get_card_numbers_list(self, public=None):
-        ret = []
-        for key, value in self.cards.items():
-            if public is None or self.public_cards[key] == public:
-                ret.append(key)
-        return ret
-
-    def get_cards_list(self, public=None):
-        ret = []
-        for key, value in self.cards.items():
-            if public is None or self.public_cards[key] == public:
-                ret.append(value)
-        return ret
-
-    def get_cards_dict(self, public=None):
-        ret = {}
-        for key, value in self.cards.items():
-            if public is None or self.public_cards[key] == public:
-                ret[key] = value
-        return ret
-
-    def check_has_3_cards(self):
-        if len(self.cards) != 3:
-            return False
-        if 1 not in self.cards:
-            return False
-        if 2 not in self.cards:
-            return False
-        if 3 not in self.cards:
-            return False
-        return isinstance(self.cards[1], Roles) and isinstance(self.cards[2], Roles) and isinstance(self.cards[3], Roles)
-
-    def flip_all_up(self):
-        self.public_cards[1] = True
-        self.public_cards[2] = True
-        self.public_cards[3] = True
-
-    def has_unfliped_cards(self):
-        if not self.public_cards[1] or not self.public_cards[2] or not self.public_cards[3]:
-            return True
-        return False
-
-    def check_winner(self):
-        cards = 0
-        for key, value in self.cards.items():
-            if value == Roles.AGENT:
-                cards += 1
-            if value == Roles.KINGPIN:
-                cards += 1
-        return cards > 1
-
-    def check_leader(self):
-        for key, value in self.cards.items():
-            if value == Roles.AGENT:
-                return True
-            if value == Roles.KINGPIN:
-                return True
-        return False
-
-    def check_agent(self):
-        for key, value in self.cards.items():
-            if value == Roles.AGENT:
-                return True
-        return False
-
-    def check_kingpin(self):
-        for key, value in self.cards.items():
-            if value == Roles.KINGPIN:
-                return True
-        return False
-
-    def team(self):
-        good, bad = 0, 0
-        for key, value in self.cards.items():
-            if value == Roles.AGENT:
-                return Roles.GOOD
-            if value == Roles.KINGPIN:
-                return Roles.BAD
-            if value == Roles.GOOD:
-                good += 1
-            if value == Roles.BAD:
-                bad += 1
-        if good >= bad:
-            return Roles.GOOD
-        elif good <= bad:
-            return Roles.BAD
-        return None
-
-    def role(self):
-        good, bad = 0, 0
-        for key, value in self.cards.items():
-            if value == Roles.AGENT:
-                return Roles.AGENT
-            if value == Roles.KINGPIN:
-                return Roles.KINGPIN
-            if value == Roles.GOOD:
-                good += 1
-            if value == Roles.BAD:
-                bad += 1
-        if good > bad:
-            return Roles.GOOD
-        elif good < bad:
-            return Roles.BAD
-        return None
-
-    def set_cards(self, c1: Roles, c2: Roles, c3: Roles):
-        self.cards = {
-            1: c1,
-            2: c2,
-            3: c3,
-        }
-        self.public_cards = {
-            1: False,
-            2: False,
-            3: False,
-        }
 
 
 class CopGame(Game):
@@ -268,7 +129,7 @@ class CopGame(Game):
     # Abstract methods redef
     def get_init_message(self, p: Player):
         p: CopPlayer
-        role = p.role()
+        role = p.get_role()
         cards_str = CopGame.decorate_cards_dict(p.get_cards_dict())
         if self.OPTIONS_USE_EQIPMENT:
             equipment = p.get_equipment()
@@ -327,14 +188,17 @@ class CopGame(Game):
         if self.state == States.AIM:
             active_player = self.n[self.current_turn_state()['active_player']]
             active_player: CopPlayer
-            if 'COFFEE' in self.current_turn_state() and not self.current_turn_state()['COFFEE']:
-                self.current_turn_state()['COFFEE'] = True
-                self.current_turn_state()['action_done'] = False
-                return Result.action("☕️ кофе помогает вам совершить второе действие в этом ходу:", States.USE_ACTION_SELECT, self._main_action_options())
             if active_player.gun:
                 return Result.action_by_id(active_player.id, "В кого направить пистолет?", States.AIM, self.get_list_of_aimable_players(active_player))
             self.state = States.END_TURN
         if self.state == States.END_TURN:
+            active_player = self.n[self.current_turn_state()['active_player']]
+            active_player: CopPlayer
+            if 'COFFEE' in self.current_turn_state() and not self.current_turn_state()['COFFEE']:
+                self.current_turn_state()['COFFEE'] = True
+                self.current_turn_state()['action_done'] = False
+                self.state = States.USE_ACTION_SELECT
+                return Result.action("☕️ кофе помогает вам совершить второе действие в этом ходу:", States.USE_ACTION_SELECT, self._main_action_options(active_player))
             return self.new_turn()
         if self.state == States.END_GAME:
             self.state = None
@@ -368,14 +232,7 @@ class CopGame(Game):
             return False
         raise Exception(f"not yet implemented - {self.state}")
 
-    def do_action(self, user, action) -> Result:
-        s_state = self.state
-        r = self._do_action(user, action)
-        self.current_turn_state()["logs"].append((f"user {str(user)} action {str(action)} on state {s_state.value}->{self.state.value}", r))
-        return r
-
     def _do_action(self, user, action) -> Result:
-        #self.current_turn_state()['action_done']
         if (self.state == States.INIT
                 or self.state == States.END_TURN
                 or self.state == States.END_GAME):
@@ -461,6 +318,7 @@ class CopGame(Game):
                 p: CopPlayer
                 p.set_cards(cards[i], cards[i+1], cards[i+2])
                 i += 3
+                p.role = p.get_role()
         self.shuffle_equipment()
         if self.OPTIONS_USE_EQIPMENT:
             for p in self.pl:
@@ -630,7 +488,7 @@ class CopGame(Game):
                     tmp += f"\tОткрытые карты:\n {CopGame.decorate_cards_dict(public_cards, separator=separator)}\n"
                 if ppl.num != key:
                     if len(public_cards) == 3:
-                        tmp += f"\tЭто значит, что *{ppl.name}* - *{ppl.role().value}*\n"
+                        tmp += f"\tЭто значит, что *{ppl.name}* - *{ppl.get_role().value}*\n"
                     else:
                         if self.OPTIONS_VIEW_KNOWN_FACTS:
                             if len(known_extra) > 0:
@@ -640,7 +498,7 @@ class CopGame(Game):
                     closed_cards = ppl.get_cards_dict(public=False)
                     if len(closed_cards):
                         tmp += f"\tЗакрытые карты:\n {CopGame.decorate_cards_dict(closed_cards, separator=separator)}\n"
-                    tmp += f"\tВы *{ppl.role().value}*\n"
+                    tmp += f"\tВы *{ppl.get_role().value}*\n"
                 if ppl.dead:
                     dead += tmp
                 else:
@@ -747,7 +605,7 @@ class CopGame(Game):
                     unflipped_card_no = next(iter(unflipped_cards))
                     active_player.flip_all_up()
                     unflipped_card = active_player.cards[unflipped_card_no]
-                    r.notify_all_others(f"У {active_player} есть 🔫 пистолет!\n{active_player} раскрыл карту *\"{unflipped_card.value}\"*\nтеперь известно, что {active_player} - {active_player.role().value}")
+                    r.notify_all_others(f"У {active_player} есть 🔫 пистолет!\n{active_player} раскрыл карту *\"{unflipped_card.value}\"*\nтеперь известно, что {active_player} - {active_player.get_role().value}")
                 # no cards to flip, gun is free
                 self.current_turn_state()['action_done'] = True
                 self.current_turn_state()['action_left'] = None
@@ -773,24 +631,24 @@ class CopGame(Game):
             if target.check_leader():
                 if not target.wounded:
                     target.wounded = True
-                    r = Result.action(f"{target.role().value} {target.name} ранен!")
-                    r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.role().value} {target.name} ранен!")
+                    r = Result.action(f"{target.get_role().value} {target.name} ранен!")
+                    r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.get_role().value} {target.name} ранен!")
                     self.state = States.END_TURN
                     if 'COFFEE' in self.current_turn_state():
                         self.state = States.AIM
                 else:
                     target.dead = True
                     target.gun = False
-                    r = Result.action(f"{target.role().value} {target.name} убит!")
+                    r = Result.action(f"{target.get_role().value} {target.name} убит!")
                     r.game_end = True
-                    r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.role().value}  {target.name} убит!")
+                    r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.get_role().value}  {target.name} убит!")
                     self.state = States.END_GAME
                     self.check_victory()
             else:
                 target.dead = True
                 target.gun = False
-                r = Result.action(f"{target.role().value} {target.name} убит!")
-                r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.role().value} {target.name} убит!")
+                r = Result.action(f"{target.get_role().value} {target.name} убит!")
+                r.notify_all_others(f"{active_player.name} выстрелил в {target.name}!\n{target.get_role().value} {target.name} убит!")
                 self.state = States.END_TURN
                 if 'COFFEE' in self.current_turn_state():
                     self.state = States.AIM
@@ -1271,9 +1129,7 @@ class CopGame(Game):
         elif item == Equipment.COFFEE:
             # "☕️ кофе: прицелиться в друго игрка. После этого можно сделать еще одно действие (например - выстрелить)",
             r = self.main_action(user, action)
-            if self.state == States.ACTION_SELECT:
-                return r
-            self.current_turn_state()['COFFEE'] = True
+            self.current_turn_state()['COFFEE'] = False
             return r
         elif item == Equipment.BRIBE:
             # "💵 взятка: Посмотреть карту дрого игрока. После этого можно поменять эту его карту на любую свою карту",
@@ -1395,7 +1251,7 @@ class CopGame(Game):
             return self.current_turn_state()['action_done']
         elif item == Equipment.COFFEE:
             # "☕️ кофе: прицелиться в друго игрка. После этого можно сделать еще одно действие (например - выстрелить)",
-            return self.current_turn_state()['action_done']
+            return 'COFFEE' in self.current_turn_state() and self.current_turn_state()['COFFEE']
         elif item == Equipment.BRIBE:
             # "💵 взятка: Посмотреть карту дрого игрока. После этого можно поменять эту его карту на любую свою карту",
             return self.current_turn_state()['action_done']
@@ -1578,7 +1434,7 @@ class CopGame(Game):
         for k, v in known_cards.items():
             ret += f"{str(k)}-{v.value} "
         if len(known_cards) == 3:
-            ret += f"\nЭто означет, что {of.name} - {of.role().value}"
+            ret += f"\nЭто означет, что {of.name} - {of.get_role().value}"
         return ret
 
     @staticmethod

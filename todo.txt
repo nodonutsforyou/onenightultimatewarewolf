@@ -10,6 +10,6 @@ leaderboard и статистика
 мозговые слизни
 
 
-eqipment
+eqipment leftovers
 описание пакета для улик
-дефиблилятор не работает
+picking up item should open card

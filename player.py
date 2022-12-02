@@ -5,6 +5,7 @@ class Player:
     id = None
     num = None
     telegram_obj = None
+    # role = None
 
     #default values
     dead = False

@@ -11,21 +11,27 @@ import os
 import copy
 import json
 from goodcopbadcop.goodcopbadcop import CopGame
+from secretbrainslug.secret_slug import SecretSlugsGame
+from whoami.whoami import WhoAmIGame
 from util import *
 
 from secrethitler import Game, Actions, Roles
+
 
 class Games(Enum):
     ONE_NIGHT_ULTIMATE_WEREWOLF = "ONE_NIGHT_ULTIMATE_WEREWOLF"
     SECRET_HITLER = "SECRET_HITLER"
     GOOD_COP_BAD_COP = "GOOD_COP_BAD_COP"
+    WHO_AM_I = "WHO_AM_I"
+
 
 games = {
     Games.GOOD_COP_BAD_COP: CopGame(),
-    Games.SECRET_HITLER: CopGame(),
+    Games.SECRET_HITLER: SecretSlugsGame(),
     Games.ONE_NIGHT_ULTIMATE_WEREWOLF: CopGame(),
+    Games.WHO_AM_I: WhoAmIGame(),
 }
-activeGame = games[Games.GOOD_COP_BAD_COP]
+activeGame = games[Games.WHO_AM_I]
 
 # Enable logging
 logging.basicConfig(
@@ -37,6 +43,7 @@ logger = logging.getLogger(__name__)
 ALARM_JOB_ID = "countdown_for_voting"
 
 ADMIN_LIST = [131733634]
+
 
 def start(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
@@ -54,6 +61,11 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_markdown_v2(
         f"Hi {user.mention_markdown_v2()}\\!\nWe have those players joined:\n{activeGame.get_list_of_players()}"
     )
+
+
+def switch_game(to):
+    global activeGame
+    activeGame = games[to]
 
 
 def help_command(update: Update, context: CallbackContext) -> None:
@@ -110,7 +122,7 @@ def kill_alarms(context: CallbackContext) -> bool:
 def do_action(action: Result, update: Update, context: CallbackContext, caller_id=None):
     for key, message in action.next_actions.items():
         message: Message
-        logger.info(str(message.expected_action) + message.msg)
+        logger.info(str(message.expected_action) + str(message.msg))
         if key == ReplyTo.ALL:
             for p in activeGame.pl:
                 context.bot.send_message(p.id, message.msg, reply_markup=reply_keyboard_markup(message.commands), parse_mode=ParseMode.MARKDOWN)
@@ -122,6 +134,11 @@ def do_action(action: Result, update: Update, context: CallbackContext, caller_i
             for p in activeGame.pl:
                 if caller_id is not None and p.id == caller_id:
                     context.bot.send_message(p.id, message.msg, reply_markup=reply_keyboard_markup(message.commands), parse_mode=ParseMode.MARKDOWN)
+        elif key == ReplyTo.TRIGGER_NEXT_ACTION:
+            if message.msg is not None:
+                for p in activeGame.pl:
+                    context.bot.send_message(p.id, message.msg, reply_markup=reply_keyboard_markup(message.commands), parse_mode=ParseMode.MARKDOWN)
+            next_step(update, context)
         else:
             if not isinstance(key, list):
                 key = [key]
@@ -132,7 +149,7 @@ def do_action(action: Result, update: Update, context: CallbackContext, caller_i
 def next_step(update: Update, context: CallbackContext):
     if activeGame.check_next_step():
         r = activeGame.do_next_step()
-        if r.game_end:
+        if r is not None and r.game_end:
             return endgame(r, update, context)
         do_action(r, update, context)
 
@@ -141,7 +158,13 @@ def endgame(action: Result, update: Update, context: CallbackContext):
     do_action(action)
     activeGame.state = None
     # logging.info(game_state_logger(activeGame.n))
-    logging.info(game_state_logger(activeGame.game_state))
+    log_game_state()
+
+
+def log_game_state():
+    filename = f"logs/{activeGame.start_ts}.log"
+    with open(filename, 'w') as f:
+        f.write(game_state_logger(activeGame.game_state))
 
 
 def game_state_logger(game_state):
@@ -182,18 +205,27 @@ def reply_keyboard_markup(buttons_list):
 
 
 def echo(update: Update, context: CallbackContext) -> None:
-    value = str(update.callback_query)
+    value = None
+    if update.callback_query is not None:
+        value = str(update.callback_query)
     if hasattr(update.callback_query, "data"):
         value = update.callback_query.data
+    if value is None:
+        value = str(update.message.text)
     logger.info(f"{str(update.effective_user)}, {value}")
     query = update.callback_query
+    if query is not None:
+        query.answer()
     global stateFlag
     num = None
-    if str(update.callback_query.data) == "OK":
+    if str(value) == "OK":
        num = "OK"
     else:
-        num = int(re.search(r"/?([0-9]+)", update.callback_query.data).group(1))
-    query.answer()
+        match = re.search(r"^/?(-?[0-9]+)$", value)
+        if match:
+            num = int(match.group(1))
+        else:
+            num = value
     r = activeGame.do_action(update.effective_user, num)
     if r is not None:
         do_action(r, update, context, caller_id=update.effective_user.id)

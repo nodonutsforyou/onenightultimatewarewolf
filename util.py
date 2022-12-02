@@ -55,6 +55,7 @@ class ReplyTo(Enum):
     CALLER = "reply to caller"
     ALL = "message all"
     ALL_OTHERS = "message all except caller"
+    TRIGGER_NEXT_ACTION = "trigger action one more time"
 
 
 class Message:
@@ -109,5 +110,8 @@ class Result:
 
     def msg_to_id(self, id, msg, expected_action=None, commands=None):
         self.next_actions[id] = Message(msg, expected_action, commands)
+
+    def trigger_action(self, msg = None):
+        self.next_actions[ReplyTo.TRIGGER_NEXT_ACTION] = Message(msg)
 
 
